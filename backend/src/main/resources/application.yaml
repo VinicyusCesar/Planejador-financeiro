@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: planejador-financeiro
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/planejador_financeiro?currentSchema=public&connectTimeout=5&socketTimeout=5
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
+    hikari:
+      connection-timeout: 5000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: public
+
+  sql:
+    init:
+      mode: never
+
+  flyway:
+    enabled: false
+
+server:
+  port: 8080
