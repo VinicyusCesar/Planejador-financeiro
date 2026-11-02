@@ -1,170 +1,154 @@
 # Backend do Planejador Financeiro
 
-Aplicação acadêmica em Java 21 e Spring Boot 4.1.2. Nesta etapa, disponibiliza apenas verificações da aplicação e da conexão com o PostgreSQL.
+API REST acadêmica em Java 21 e Spring Boot 4.1.2, com mapeamento das 12 tabelas PostgreSQL, cadastros, transações, parcelamento, faturas, pagamentos, transferências, orçamento, metas e dashboards.
 
 ## Requisitos e dependências
 
-- JDK 21 (compilação verificada com Java 21.0.12.1).
-- PostgreSQL local; versão prevista no projeto: 18.6. O banco `planejador_financeiro` e suas 12 tabelas devem existir no schema `public`.
-- Maven Wrapper incluído (`mvnw.cmd` no Windows, Maven 3.10.0). Não é necessário instalar Maven globalmente. A primeira execução precisa de acesso à internet para baixar dependências.
-- VS Code com suporte a Java 21; Extension Pack for Java e Spring Boot Extension Pack são opcionais para facilitar a edição e a execução.
+- JDK 21; validado com Java 21.0.12.1.
+- PostgreSQL 18.6 local, com o banco `planejador_financeiro` e o schema `public` previamente criados.
+- Maven Wrapper incluído, versão 3.10.0; não exige Maven global.
+- VS Code com suporte a Java e Maven. A primeira compilação precisa de internet.
 
-| Dependência | Responsabilidade |
-| --- | --- |
-| Spring Web MVC | Servidor HTTP e endpoints REST com respostas JSON. |
-| Spring Data JPA / Hibernate | Infraestrutura de persistência para as próximas etapas e configuração de validação dos mapeamentos. Inclui JDBC, `JdbcTemplate` e HikariCP transitivamente. |
-| PostgreSQL Driver | Comunicação JDBC com PostgreSQL. |
-| Spring Validation | Suporte à validação de entradas nas próximas etapas. |
-| Spring Boot DevTools | Ferramentas de desenvolvimento local; dependência opcional em runtime. |
-| Spring Boot Starter Test e Web MVC Test | JUnit, Mockito, AssertJ e testes HTTP/MVC. |
-| Flyway e suporte PostgreSQL | Dependências preexistentes mantidas, com execução desabilitada. |
+O parent Spring Boot gerencia as versões de Spring Web MVC, Spring Data JPA/Hibernate, Validation, driver PostgreSQL, DevTools e ferramentas JUnit/Mockito/MockMvc. JDBC e HikariCP chegam transitivamente pelo starter JPA. Flyway permanece instalado e desabilitado. Não foram adicionadas dependências Maven na Tarefa 02.
 
-As versões das dependências são gerenciadas pelo parent Spring Boot 4.1.2. O projeto usa o starter `spring-boot-starter-webmvc`, compatível com essa versão.
+## Configuração PostgreSQL
 
-## Variáveis de ambiente
-
-| Variável | Valor padrão | Uso |
+| Variável | Padrão | Finalidade |
 | --- | --- | --- |
-| `DB_PASSWORD` | Sem padrão; obrigatória na execução normal | Senha do usuário PostgreSQL. |
-| `DB_USERNAME` | `postgres` | Usuário de desenvolvimento. |
-| `DB_HOST` | `127.0.0.1` | Host do PostgreSQL. |
-| `DB_PORT` | `5432` | Porta do PostgreSQL. |
+| DB_PASSWORD | Obrigatória na execução normal, sem padrão | Senha PostgreSQL. |
+| DB_USERNAME | postgres | Usuário do banco. |
+| DB_HOST | 127.0.0.1 | Host local. |
+| DB_PORT | 5432 | Porta PostgreSQL. |
 
-O banco é fixado em `planejador_financeiro` e o schema em `public`. Nenhuma senha deve ser escrita em arquivos versionados. Arquivos `.env` são ignorados pelo Git, mas **não são carregados automaticamente** pela aplicação.
+O banco permanece `planejador_financeiro`. A URL define `currentSchema=public` e o Hibernate também usa o schema public. A configuração mantém `ddl-auto=validate`, `spring.flyway.enabled=false` e `spring.sql.init.mode=never`.
 
-No terminal PowerShell integrado do VS Code, entre na pasta `backend` e informe a senha sem incluí-la no histórico de comandos:
+O backend não executa o schema automaticamente. `src/main/resources/db/migration/V1.sql` foi preservado. Com as 12 entidades implementadas, o Hibernate valida seus mapeamentos ao iniciar. A divergência contra o banco real não pôde ser investigada sem senha; a validação passou em PostgreSQL 18.6 isolado com cópia do SQL original.
 
-```powershell
+No terminal PowerShell integrado do VS Code:
+
+~~~powershell
 cd backend
-$taskDbPassword = Read-Host 'Senha do PostgreSQL para o usuário postgres' -AsSecureString
+$taskDbPassword = Read-Host 'Senha do PostgreSQL' -AsSecureString
 $env:DB_PASSWORD = [System.Net.NetworkCredential]::new('', $taskDbPassword).Password
 Remove-Variable taskDbPassword
-```
+~~~
 
-Se necessário, defina os demais parâmetros na mesma sessão:
+Se necessário:
 
-```powershell
+~~~powershell
+$env:DB_USERNAME = 'postgres'
 $env:DB_HOST = '127.0.0.1'
 $env:DB_PORT = '5432'
-$env:DB_USERNAME = 'postgres'
-```
+~~~
 
-## Compilar, testar e iniciar pelo VS Code
+Não grave senhas em arquivos versionados. Arquivos .env são ignorados pelo Git e não são carregados automaticamente.
 
-1. Abra a pasta do repositório no VS Code e utilize JDK 21 para o projeto Maven em `backend/pom.xml`.
-2. Abra **Terminal → Novo Terminal** e configure as variáveis conforme indicado acima.
-3. Dentro de `backend`, execute:
+## Compilar e executar pelo VS Code
 
-```powershell
+Abra a raiz do repositório, selecione JDK 21 para o projeto Maven e use o terminal integrado, dentro de backend:
+
+~~~powershell
 java -version
 .\mvnw.cmd --version
 .\mvnw.cmd -B verify
 .\mvnw.cmd spring-boot:run
-```
+~~~
 
-A aplicação atende em `http://localhost:8080`. A classe principal é `com.planejador.BackendApplication`. Interrompa com `Ctrl+C`. Para remover a senha da sessão ao terminar:
+Alternativamente, depois do verify:
 
-```powershell
-Remove-Item Env:DB_PASSWORD
-```
-
-Para executar o JAR gerado pelo `verify`, use na mesma sessão configurada:
-
-```powershell
+~~~powershell
 java -jar .\target\backend-0.0.1-SNAPSHOT.jar
-```
+~~~
 
-Os testes automatizados não precisam de PostgreSQL nem de `DB_PASSWORD`. O teste de inicialização desativa a autoconfiguração do DataSource somente no teste e substitui o repositório por um mock. Os testes MVC usam o serviço real e um repositório simulado. Isso verifica o contrato HTTP, sem comprovar uma conexão real.
+A aplicação escuta em `http://127.0.0.1:8080`. CORS permite `http://localhost:4200` para GET, POST, PUT, PATCH e DELETE, com Content-Type e X-Usuario-Id. A classe principal continua `com.planejador.BackendApplication`.
 
-## Configuração e preservação do banco
+Interrompa com Ctrl+C. Ao terminar, remova a senha da sessão:
 
-O arquivo `src/main/resources/application.yaml` mantém:
+~~~powershell
+Remove-Item Env:DB_PASSWORD
+~~~
 
-- `spring.jpa.hibernate.ddl-auto: validate`;
-- `spring.jpa.properties.hibernate.default_schema: public` e `currentSchema=public` na URL JDBC;
-- `spring.flyway.enabled: false`;
-- `spring.sql.init.mode: never`;
-- `spring.jpa.open-in-view: false`;
-- timeout de conexão do pool de 5 segundos e timeouts JDBC de conexão/leitura de 5 segundos.
+## Testes sem PostgreSQL
 
-O backend não executa `V1.sql`, não cria tabelas e não altera os dados existentes. O arquivo SQL permanece como referência do schema manual. Como ainda não existem entidades JPA, `validate` não verifica a definição das 12 tabelas; passará a validar os mapeamentos quando forem implementados.
+~~~powershell
+.\mvnw.cmd -B verify
+~~~
 
-A execução normal precisa de credenciais válidas e de PostgreSQL disponível para inicializar o Hibernate. O endpoint da aplicação não consulta o banco a cada requisição, mas só fica acessível depois de a aplicação iniciar. Se o banco falhar após a inicialização, a verificação do banco responde com HTTP 503.
+Os testes unitários, MVC e o servidor isolado de health não precisam de banco ou senha. As duas classes de integração PostgreSQL são ignoradas quando TEST_DB_URL não aponta explicitamente para um banco local de teste permitido.
 
-## Testar os endpoints e a conexão
+O health da aplicação não faz consulta a cada chamada, mas a inicialização normal do Hibernate depende de PostgreSQL e credenciais válidas.
 
-Com a aplicação iniciada, abra outro terminal:
+## Testes com PostgreSQL isolado, sem Docker
 
-```powershell
-Invoke-RestMethod http://localhost:8080/api/health | ConvertTo-Json
-Invoke-RestMethod http://localhost:8080/api/health/database | ConvertTo-Json
-```
+O script cria um cluster temporário dentro de backend/target, escutando apenas em loopback em outra porta. Cria somente nesse cluster o banco planejador_financeiro_test, aplica uma cópia do V1.sql, executa verify e encerra os processos ao final. Nenhuma conexão de teste usa a porta 5432.
 
-`GET /api/health` responde HTTP 200:
+No Windows, com o caminho correto dos binários da instalação:
 
-```json
-{"success": true, "status": "UP"}
-```
+~~~powershell
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\Test-Postgres.ps1 -PostgresBin 'E:\postgres\18\bin' -SmokeHttp
+~~~
 
-`GET /api/health/database` executa somente:
+RemoteSigned vale apenas para esse processo e permite executar o script local sem alterar a política global do Windows. Os parâmetros opcionais `-Port 55433` e `-HttpPort 18081` resolvem conflitos de portas; os padrões são 55432 e 18080. O script recusa a porta PostgreSQL 5432 ou uma porta já ocupada.
 
-```sql
-SELECT current_database() AS database_name,
-       current_schema() AS schema_name,
-       current_user AS user_name;
-```
+`-SmokeHttp` também inicia o JAR gerado e consulta os dois endpoints de saúde por HTTP com banco real de teste. A autenticação trust é exclusiva do cluster temporário em loopback; nenhuma senha de desenvolvimento é alterada. Artefatos e logs permanecem em target; não use Maven clean enquanto o cluster estiver em execução.
 
-Exemplo de resposta esperada, após autenticação real, com HTTP 200:
+Para usar um banco de teste já preparado, exclusivamente isolado:
 
-```json
-{"success": true, "database": "planejador_financeiro", "schema": "public", "user": "postgres"}
-```
+~~~powershell
+$env:TEST_DB_URL = 'jdbc:postgresql://127.0.0.1:55432/planejador_financeiro_test?currentSchema=public'
+$env:TEST_DB_USERNAME = 'backend_test'
+# Se o banco isolado exigir senha, defina TEST_DB_PASSWORD com leitura protegida.
+.\mvnw.cmd -B verify
+Remove-Item Env:TEST_DB_URL
+Remove-Item Env:TEST_DB_USERNAME
+~~~
 
-Em falhas de acesso ao banco, a resposta é HTTP 503, sem detalhes da exceção:
+Os testes aceitam apenas o host literal 127.0.0.1, porta diferente de 5432 e nome exato planejador_financeiro_test. O schema deve estar preparado e as 12 tabelas serão validadas por Hibernate. Testes comuns usam rollback; os testes de concorrência gravam fixtures somente no banco descartável.
 
-```json
-{"success": false, "message": "Não foi possível conectar ao banco de dados."}
-```
+## Testar a API
 
-Para conferir o servidor e realizar a mesma consulta diretamente, se o diretório `bin` do PostgreSQL estiver no `PATH`:
+~~~powershell
+Invoke-RestMethod http://127.0.0.1:8080/api/health
+Invoke-RestMethod http://127.0.0.1:8080/api/health/database
+~~~
 
-```powershell
-pg_isready -h 127.0.0.1 -p 5432 -d planejador_financeiro
-psql -h 127.0.0.1 -p 5432 -U postgres -d planejador_financeiro -W -c 'SELECT current_database(), current_schema(), current_user;'
-```
+A segunda rota retorna sucesso, banco, schema e usuário reais da sessão. Banco indisponível após inicialização gera HTTP 503 sem detalhes internos.
 
-`pg_isready` confirma apenas que o servidor aceita conexões. A consulta autenticada ou o endpoint do banco é necessária para confirmar o acesso ao banco correto. Caso esses executáveis não estejam no `PATH`, use o caminho completo da instalação local.
+Cadastre ou selecione um usuário em `/api/usuarios`. Para os recursos financeiros, envie seu ID:
 
-## Organização e fluxo interno
+~~~powershell
+$taskHeaders = @{ 'X-Usuario-Id' = 'UUID_DO_USUARIO' }
+Invoke-RestMethod http://127.0.0.1:8080/api/contas -Headers $taskHeaders
+Invoke-RestMethod 'http://127.0.0.1:8080/api/dashboard/resumo-mensal?ano=2026&mes=10' -Headers $taskHeaders
+~~~
 
-```text
-com.planejador
-├── BackendApplication.java
-├── config/CorsConfig.java
-├── controller/HealthController.java
-├── service/HealthService.java
-├── repository/DatabaseHealthRepository.java
-├── dto/HealthResponse.java
-├── dto/DatabaseHealthResponse.java
-├── dto/ErrorResponse.java
-└── exception/HealthExceptionHandler.java
-```
+As rotas de recursos são `/api/usuarios`, `/api/contas`, `/api/categorias`, `/api/transacoes`, `/api/cartoes`, `/api/faturas`, `/api/transferencias`, `/api/orcamentos`, `/api/metas` e `/api/dashboard`.
 
-Fluxo de `GET /api/health/database`:
+Consulte o [contrato completo da API](../docs/api-backend.md) para todos os métodos, filtros e exemplos JSON.
 
-```text
-Requisição HTTP → HealthController → HealthService
-    → DatabaseHealthRepository → JdbcTemplate → DataSource/HikariCP
-    → Driver JDBC → PostgreSQL → resultado da consulta
-    → DTO → resposta JSON (HTTP 200)
-```
+## Funcionamento interno e regras
 
-O controller recebe a requisição e chama o serviço. O serviço encaminha a verificação ao repositório, onde fica o SQL. O `JdbcTemplate` obtém uma conexão do pool e converte a linha retornada em `DatabaseHealthResponse`. O Spring serializa esse record em JSON. Se ocorrer uma `DataAccessException`, `HealthExceptionHandler` devolve o erro genérico com HTTP 503.
+~~~text
+Angular → Controller → Service → Repository → PostgreSQL
+                      ↓
+                DTO → resposta JSON
+~~~
 
-O pacote `model` será criado quando houver entidades reais. Não há CRUDs, cálculos financeiros ou frontend nesta etapa. O CORS permite somente a origem `http://localhost:4200` e o método `GET` em `/api/**`, incluindo o preflight correspondente. Novos métodos poderão ser liberados quando forem implementados.
+Controllers recebem DTOs e aplicam Bean Validation. Services conferem propriedade, regras financeiras e transações. Os repositories JPA persistem as 12 entidades; ConsultasFinanceirasRepository agrega os indicadores com SQL. As entidades nunca são serializadas diretamente.
 
-## Validação desta tarefa
+- Saldo bancário inclui operações liquidadas, transferências e pagamentos de fatura; não inclui a compra no crédito.
+- Competência usa data da compra e valor total, mesmo em crédito parcelado. Pagamentos e transferências internas não viram novas despesas.
+- Parcelas distribuem centavos sem alterar o total e usam faturas consecutivas.
+- Bloqueios pessimistas por usuário protegem limite, pagamentos e criação de faturas concorrentes.
+- Categorias só são excluídas sem dependências. Contas/cartões são desativados; transações/transferências são canceladas.
+- Pagamentos existentes bloqueiam alteração de compras e novas compras naquela fatura, inclusive após pagamento parcial.
+- O calendário de cartões com faturas não pode ser alterado; saldos negativos são permitidos.
+- Metas não têm aportes no schema: progresso permanece indisponível, sem valor fictício.
+- X-Usuario-Id identifica o proprietário no ambiente local e não substitui autenticação. Não publique a aplicação sem desenvolver essa proteção.
 
-Consulte [o relatório da Tarefa 01](../docs/relatorios/tarefa-01-backend-base.md) para os comandos executados, os resultados e a limitação de autenticação PostgreSQL encontrada neste ambiente.
+Detalhes: [regras financeiras](../docs/regras-financeiras.md) e [consultas SQL](../docs/consultas-sql.md).
 
-Referências: [testes no Spring Boot](https://docs.spring.io/spring-boot/reference/testing/spring-boot-applications.html) e [JDBC e SQL no Spring Boot](https://docs.spring.io/spring-boot/reference/data/sql.html).
+## Relatórios
+
+- [Tarefa 01 — base do backend](../docs/relatorios/tarefa-01-backend-base.md).
+- [Tarefa 02 — backend financeiro](../docs/relatorios/tarefa-02-backend-completo.md), com funcionalidades entregues, testes executados, fluxos e limitações.

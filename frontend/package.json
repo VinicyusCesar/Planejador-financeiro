@@ -1,0 +1,39 @@
+{
+  "name": "planejador-financeiro",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve --host localhost --port 4200 --proxy-config proxy.conf.cjs",
+    "build": "ng build",
+    "preview": "node scripts/preview.mjs",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test --watch=false",
+    "e2e": "playwright test",
+    "e2e:real": "playwright test --config playwright.real.config.ts"
+  },
+  "private": true,
+  "packageManager": "npm@11.19.0",
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.2.0",
+    "@fontsource-variable/inter-tight": "^5.2.0",
+    "@angular/common": "^21.2.0",
+    "@angular/compiler": "^21.2.0",
+    "@angular/core": "^21.2.0",
+    "@angular/forms": "^21.2.0",
+    "@angular/platform-browser": "^21.2.0",
+    "@angular/router": "^21.2.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "^24.0.0",
+    "jsdom": "^27.1.0",
+    "vitest": "^4.0.8",
+    "@angular/build": "^21.2.29",
+    "@angular/cli": "^21.2.29",
+    "@angular/compiler-cli": "^21.2.0",
+    "prettier": "^3.8.1",
+    "typescript": "~5.9.2"
+  }
+}

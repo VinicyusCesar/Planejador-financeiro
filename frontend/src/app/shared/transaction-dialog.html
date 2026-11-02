@@ -1,0 +1,210 @@
+<app-modal
+  [title]="transaction() ? 'Editar transação' : 'Nova transação'"
+  description="Cada movimento é um passo na sua organização."
+  [busy]="saving()"
+  (closed)="editor.close()"
+>
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="transaction-type" role="group" aria-label="Tipo de transação">
+      <button
+        type="button"
+        [class.selected]="type() === 'DESPESA'"
+        (click)="form.controls.tipo.setValue('DESPESA')"
+      >
+        <app-icon name="down" />Despesa
+      </button>
+      <button
+        type="button"
+        [class.selected]="type() === 'RECEITA'"
+        [disabled]="credit()"
+        (click)="form.controls.tipo.setValue('RECEITA')"
+      >
+        <app-icon name="up" />Receita
+      </button>
+    </div>
+    <div class="form-grid">
+      <div class="field wide amount-field">
+        <label for="tx-valor">Qual é o valor?</label>
+        <div class="amount-input">
+          <span>R$</span
+          ><input
+            id="tx-valor"
+            formControlName="valor"
+            inputmode="decimal"
+            placeholder="0,00"
+            (blur)="formatAmount()"
+            [attr.aria-invalid]="invalid('valor')"
+          />
+        </div>
+        @if (invalid('valor')) {
+          <small class="field-error">{{ fieldError('valor') }}</small>
+        }
+      </div>
+      <div class="field wide">
+        <label for="tx-descricao">Descrição</label
+        ><input
+          id="tx-descricao"
+          formControlName="descricao"
+          maxlength="200"
+          placeholder="Como você quer lembrar deste movimento?"
+        />
+        @if (invalid('descricao')) {
+          <small class="field-error">{{ fieldError('descricao') }}</small>
+        }
+      </div>
+      <div class="field">
+        <label for="tx-meio">Forma de pagamento</label
+        ><select id="tx-meio" formControlName="meioPagamento">
+          @for (method of methods; track method.value) {
+            <option [value]="method.value">{{ method.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="tx-categoria">Categoria</label
+        ><select id="tx-categoria" formControlName="categoriaId">
+          <option value="" disabled>Selecione</option>
+          @for (category of categories(); track category.id) {
+            <option [value]="category.id">{{ category.nome }}</option>
+          }
+        </select>
+        @if (invalid('categoriaId')) {
+          <small class="field-error">{{ fieldError('categoriaId') }}</small>
+        }
+      </div>
+      @if (credit()) {
+        <div class="field">
+          <label for="tx-cartao">Cartão</label
+          ><select id="tx-cartao" formControlName="cartaoId">
+            <option value="" disabled>Selecione</option>
+            @for (card of workspace.activeCards(); track card.id) {
+              <option [value]="card.id">{{ card.nome }}</option>
+            }
+          </select>
+          @if (invalid('cartaoId')) {
+            <small class="field-error">{{ fieldError('cartaoId') }}</small>
+          }
+        </div>
+        <div class="field">
+          <label for="tx-parcelas">Número de parcelas</label
+          ><input
+            id="tx-parcelas"
+            type="number"
+            min="1"
+            max="600"
+            formControlName="quantidadeParcelas"
+          />
+          @if (invalid('quantidadeParcelas')) {
+            <small class="field-error">{{ fieldError('quantidadeParcelas') }}</small>
+          }
+        </div>
+      } @else {
+        <div class="field wide">
+          <label for="tx-conta">Conta</label
+          ><select id="tx-conta" formControlName="contaId">
+            <option value="" disabled>Selecione</option>
+            @for (account of workspace.activeAccounts(); track account.id) {
+              <option [value]="account.id">{{ account.nome }}</option>
+            }
+          </select>
+          @if (invalid('contaId')) {
+            <small class="field-error">{{ fieldError('contaId') }}</small>
+          }
+        </div>
+      }
+      <div class="field">
+        <label for="tx-data">Data da transação</label
+        ><input id="tx-data" type="date" formControlName="dataTransacao" />
+        @if (invalid('dataTransacao')) {
+          <small class="field-error">{{ fieldError('dataTransacao') }}</small>
+        }
+      </div>
+      <div class="field">
+        <label for="tx-situacao">Situação</label
+        ><select id="tx-situacao" formControlName="situacao">
+          <option value="CONFIRMADA">Confirmada</option>
+          <option value="PENDENTE">Pendente</option>
+        </select>
+      </div>
+      @if (!credit()) {
+        <div class="field">
+          <label for="tx-vencimento">Vencimento (opcional)</label
+          ><input id="tx-vencimento" type="date" formControlName="dataVencimento" />
+        </div>
+        @if (!pending()) {
+          <div class="field">
+            <label for="tx-liquidacao">Liquidação (opcional)</label
+            ><input
+              id="tx-liquidacao"
+              type="date"
+              [max]="today"
+              formControlName="dataLiquidacao"
+            /><small class="field-hint">Se vazio, usa a data da transação.</small>
+          </div>
+        }
+      }
+    </div>
+    @if (credit()) {
+      <p class="note">
+        <app-icon name="info" />A compra utiliza o limite do cartão. O saldo da conta só muda no
+        pagamento da fatura.
+      </p>
+    }
+    @if (pending()) {
+      <p class="note">
+        <app-icon name="calendar" />Pendente: este movimento ainda não afeta seu saldo nem o limite
+        do cartão.
+      </p>
+    }
+    @if (categories().length === 0) {
+      <p class="note warning">
+        Você precisa de uma categoria compatível.
+        <a routerLink="/categorias" (click)="editor.close()">Organizar categorias</a>
+      </p>
+    }
+    @if (!credit() && workspace.activeAccounts().length === 0) {
+      <p class="note warning">
+        Cadastre uma conta antes de registrar este movimento.
+        <a routerLink="/contas" (click)="editor.close()">Ir para contas</a>
+      </p>
+    }
+    @if (credit() && workspace.activeCards().length === 0) {
+      <p class="note warning">
+        Cadastre um cartão para comprar no crédito.
+        <a routerLink="/cartoes" (click)="editor.close()">Ir para cartões</a>
+      </p>
+    }
+    @if (error()) {
+      <p class="form-error" role="alert">{{ error() }}</p>
+    }
+    <div class="modal-actions">
+      <button class="button secondary" type="button" [disabled]="saving()" (click)="editor.close()">
+        Voltar
+      </button>
+      <button
+        class="button"
+        type="submit"
+        [disabled]="
+          saving() ||
+          categories().length === 0 ||
+          (credit()
+            ? workspace.activeCards().length === 0
+            : workspace.activeAccounts().length === 0)
+        "
+      >
+        @if (saving()) {
+          <span class="spinner small"></span>
+        }
+        {{
+          saving()
+            ? 'Salvando…'
+            : transaction()
+              ? 'Salvar alterações'
+              : type() === 'RECEITA'
+                ? 'Registrar receita'
+                : 'Registrar despesa'
+        }}
+      </button>
+    </div>
+  </form>
+</app-modal>

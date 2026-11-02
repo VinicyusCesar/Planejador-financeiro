@@ -1,0 +1,274 @@
+<a class="skip-link" href="#main">Pular para o conteúdo</a>
+<div class="app-shell">
+  @if (menuOpen()) {
+    <button
+      type="button"
+      class="sidebar-backdrop"
+      aria-label="Fechar navegação"
+      (click)="toggleMenu()"
+    ></button>
+  }
+  <aside
+    class="sidebar"
+    [class.is-open]="menuOpen()"
+    [attr.inert]="mobile() && !menuOpen() ? '' : null"
+    aria-label="Navegação principal"
+  >
+    <a class="brand" routerLink="/" aria-label="Planejador, início">
+      <span class="logo-mark"
+        ><svg viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <path d="M6 20V8h5a6 6 0 0 1 0 12H6Z" stroke="currentColor" stroke-width="2.2" />
+          <path
+            d="m13 20 9-12M16 8h6v6"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          /></svg
+      ></span>
+      <span class="brand-name">planejador<small>FINANÇAS PESSOAIS</small></span>
+    </a>
+    <button
+      type="button"
+      class="icon-button mobile-close"
+      aria-label="Fechar menu"
+      (click)="toggleMenu()"
+    >
+      <app-icon name="close" />
+    </button>
+    <nav class="nav-group">
+      @for (group of ['PRINCIPAL', 'PLANEJAMENTO', 'ORGANIZAÇÃO']; track group) {
+        <p class="nav-caption">{{ group }}</p>
+        @for (link of links; track link.path) {
+          @if (link.group === group) {
+            <a
+              class="nav-item"
+              [routerLink]="link.path"
+              [class.active]="isActive(link.path)"
+              [attr.aria-current]="isActive(link.path) ? 'page' : null"
+            >
+              <app-icon [name]="link.icon" /><span>{{ link.label }}</span>
+            </a>
+          }
+        }
+      }
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="sidebar-note">
+        <app-icon name="spark" />
+        <p>Pequenos passos.<br />Grandes possibilidades.</p>
+      </div>
+      <div class="profile-switcher">
+        <span class="avatar" aria-hidden="true">{{ initial() }}</span>
+        <div class="profile-control">
+          <label for="profile-select">Seu espaço</label>
+          <select
+            id="profile-select"
+            aria-label="Perfil selecionado"
+            [value]="context.userId() || ''"
+            (change)="workspace.select($any($event.target).value)"
+            [disabled]="workspace.users().length === 0"
+          >
+            @if (workspace.users().length === 0) {
+              <option value="">Vamos começar</option>
+            }
+            @for (user of workspace.users(); track user.id) {
+              <option [value]="user.id">{{ user.nome }}</option>
+            }
+          </select>
+        </div>
+        <a class="icon-button plain" routerLink="/perfis" aria-label="Gerenciar perfis"
+          ><app-icon name="right"
+        /></a>
+      </div>
+    </div>
+  </aside>
+  <div class="main" [attr.inert]="menuOpen() ? '' : null">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button
+          type="button"
+          class="icon-button mobile-menu-button"
+          aria-label="Abrir menu"
+          [attr.aria-expanded]="menuOpen()"
+          (click)="toggleMenu()"
+        >
+          <app-icon name="menu" />
+        </button>
+        <p class="welcome">
+          Olá, <strong>{{ firstName() }}.</strong>
+        </p>
+        <div class="search-box">
+          <app-icon name="search" /><label for="quick-search" class="sr-only"
+            >Buscar uma página</label
+          >
+          <input
+            id="quick-search"
+            type="search"
+            placeholder="O que você procura?"
+            [value]="search()"
+            (input)="search.set($any($event.target).value)"
+            aria-controls="page-search-results"
+            autocomplete="off"
+          />
+          @if (search().trim()) {
+            <div class="search-results" id="page-search-results" aria-label="Páginas encontradas">
+              @for (link of matches(); track link.path) {
+                <a [routerLink]="link.path">{{ link.label }}</a>
+              }
+              @if (matches().length === 0) {
+                <p>Nenhuma página encontrada.</p>
+              }
+            </div>
+          }
+        </div>
+      </div>
+      <div class="topbar-tools">
+        <span
+          class="connection-status"
+          [title]="
+            workspace.connected() ? 'Conexão com o banco verificada' : 'Conexão não confirmada'
+          "
+        >
+          <span
+            class="status-dot"
+            [class.online]="workspace.connected()"
+            [class.offline]="!workspace.connecting() && !workspace.connected()"
+          ></span>
+          {{
+            workspace.connecting()
+              ? 'Conectando'
+              : workspace.connected()
+                ? 'Conectado'
+                : 'Sem conexão'
+          }}
+        </span>
+        <button
+          type="button"
+          class="icon-button plain"
+          [attr.aria-label]="context.hidden() ? 'Mostrar valores' : 'Ocultar valores'"
+          [attr.aria-pressed]="context.hidden()"
+          (click)="context.togglePrivacy()"
+        >
+          <app-icon [name]="context.hidden() ? 'hidden' : 'eye'" />
+        </button>
+        <button
+          type="button"
+          class="icon-button plain"
+          aria-label="Atualizar dados"
+          [disabled]="workspace.connecting()"
+          (click)="workspace.connect()"
+        >
+          <app-icon name="refresh" />
+        </button>
+        <button
+          type="button"
+          class="button"
+          aria-label="Nova transação"
+          [disabled]="
+            !context.userId() || workspace.lookups.loading() || !!workspace.lookups.error()
+          "
+          (click)="transactions.create()"
+        >
+          <app-icon name="plus" /><span class="new-tx-label">Nova transação</span>
+        </button>
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
+      @if (workspace.connecting()) {
+        <section class="onboarding glass">
+          <p class="eyebrow">SEU ESPAÇO FINANCEIRO</p>
+          <h1>Um instante.<br />Vamos organizar tudo.</h1>
+          <app-load-state [loading]="true" />
+        </section>
+      } @else if (workspace.connectionError()) {
+        <section class="onboarding glass">
+          <span class="empty-icon"><app-icon name="info" /></span>
+          <p class="eyebrow">VAMOS RECONECTAR</p>
+          <h1>Seu espaço está aqui.<br />Falta a conexão.</h1>
+          <p class="muted">{{ workspace.connectionError() }}</p>
+          <button type="button" class="button" (click)="workspace.connect()">
+            <app-icon name="refresh" />Tentar novamente
+          </button>
+          <p class="note">
+            Se estiver começando, inicie o backend com a conexão ao PostgreSQL configurada. Seus
+            dados continuam no banco.
+          </p>
+        </section>
+      } @else if (!context.userId() && !router.url.startsWith('/perfis')) {
+        <section class="onboarding glass">
+          <span class="logo-mark"><app-icon name="spark" /></span>
+          <p class="eyebrow">BEM-VINDO AO SEU PLANEJADOR</p>
+          <h1>Mais clareza.<br />Mais possibilidades.</h1>
+          <p class="muted">
+            Um lugar para entender seu dinheiro, organizar o presente e dar espaço aos seus próximos
+            planos.
+          </p>
+          <button type="button" class="button" (click)="editors.user()">
+            Criar meu perfil<app-icon name="arrow" />
+          </button>
+          <div class="onboarding-steps">
+            <div>
+              <span>01</span>
+              <h3>Seu espaço</h3>
+              <p>Comece com um perfil só seu.</p>
+            </div>
+            <div>
+              <span>02</span>
+              <h3>Suas contas</h3>
+              <p>Conecte sua organização à vida real.</p>
+            </div>
+            <div>
+              <span>03</span>
+              <h3>Seus planos</h3>
+              <p>Dê uma direção a cada escolha.</p>
+            </div>
+          </div>
+        </section>
+      } @else {
+        <app-load-state [error]="workspace.lookups.error()" (retry)="workspace.lookups.reload()" />
+        <router-outlet />
+      }
+    </main>
+    <footer class="footer-note">
+      <span>Feito para suas próximas escolhas.</span
+      ><span><app-icon name="spark" />Seu dinheiro, com mais clareza.</span>
+    </footer>
+  </div>
+</div>
+<nav class="mobile-nav" aria-label="Navegação rápida" [attr.inert]="menuOpen() ? '' : null">
+  <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+    ><app-icon name="home" />Visão geral</a
+  >
+  <a routerLink="/transacoes" routerLinkActive="active"><app-icon name="activity" />Movimentos</a>
+  <a routerLink="/contas" routerLinkActive="active"><app-icon name="wallet" />Contas</a>
+  <button type="button" aria-label="Mais páginas" (click)="toggleMenu()">
+    <app-icon name="menu" />Mais
+  </button>
+</nav>
+<div class="toast-stack" aria-live="polite">
+  @for (toast of toasts.items(); track toast.id) {
+    <div
+      class="toast"
+      [class.error]="toast.kind === 'error'"
+      [attr.role]="toast.kind === 'error' ? 'alert' : 'status'"
+    >
+      <app-icon [name]="toast.kind === 'success' ? 'check' : 'info'" />
+      <p>{{ toast.message }}</p>
+      <button
+        type="button"
+        class="icon-button"
+        aria-label="Fechar mensagem"
+        (click)="toasts.dismiss(toast.id)"
+      >
+        <app-icon name="close" />
+      </button>
+    </div>
+  }
+</div>
+@if (dialogs.active(); as config) {
+  <app-form-dialog [config]="config" />
+}
+@if (transactions.active() !== undefined) {
+  <app-transaction-dialog [transaction]="transactions.active() || null" />
+}

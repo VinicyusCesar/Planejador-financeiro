@@ -1,0 +1,253 @@
+<div class="page">
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">CADA MOVIMENTO CONTA</p>
+      <div class="page-title-mask"><h1>Transações</h1></div>
+      <p class="muted">Receitas, despesas e próximos passos. Tudo no seu tempo.</p>
+    </div>
+    <button type="button" class="button secondary" (click)="filtersOpen.set(!filtersOpen())">
+      <app-icon name="filter" />{{ filtersOpen() ? 'Ocultar filtros' : 'Filtrar movimentos' }}
+    </button>
+  </div>
+  <div class="toolbar">
+    <div class="tabs" aria-label="Tipos de transação">
+      @for (
+        item of [
+          { key: 'TODAS', label: 'Todas' },
+          { key: 'RECEITA', label: 'Receitas' },
+          { key: 'DESPESA', label: 'Despesas' },
+          { key: 'PENDENTE', label: 'Pendentes' },
+        ];
+        track item.key
+      ) {
+        <button type="button" [class.active]="tab() === item.key" (click)="chooseTab(item.key)">
+          {{ item.label }}
+        </button>
+      }
+    </div>
+    <div class="page-search">
+      <app-icon name="search" /><label class="sr-only" for="transaction-search"
+        >Buscar nesta página</label
+      ><input
+        id="transaction-search"
+        type="search"
+        placeholder="Buscar nesta página…"
+        [value]="search()"
+        (input)="search.set($any($event.target).value)"
+      />
+    </div>
+  </div>
+  @if (filtersOpen()) {
+    <form class="filter-panel glass" [formGroup]="form" (ngSubmit)="apply()">
+      <div class="field">
+        <label for="filter-inicio">De</label
+        ><input id="filter-inicio" type="date" formControlName="inicio" />
+      </div>
+      <div class="field">
+        <label for="filter-fim">Até</label
+        ><input id="filter-fim" type="date" formControlName="fim" />
+      </div>
+      <div class="field">
+        <label for="filter-conta">Conta</label
+        ><select id="filter-conta" formControlName="contaId">
+          <option value="">Todas</option>
+          @for (account of workspace.accounts(); track account.id) {
+            <option [value]="account.id">{{ account.nome }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="filter-cartao">Cartão</label
+        ><select id="filter-cartao" formControlName="cartaoId">
+          <option value="">Todos</option>
+          @for (card of workspace.cards(); track card.id) {
+            <option [value]="card.id">{{ card.nome }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="filter-categoria">Categoria</label
+        ><select id="filter-categoria" formControlName="categoriaId">
+          <option value="">Todas</option>
+          @for (category of workspace.categories(); track category.id) {
+            <option [value]="category.id">{{ category.nome }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="filter-situacao">Situação</label
+        ><select id="filter-situacao" formControlName="situacao">
+          <option value="">Todas</option>
+          <option value="CONFIRMADA">Confirmada</option>
+          <option value="PENDENTE">Pendente</option>
+          <option value="CANCELADA">Cancelada</option>
+        </select>
+      </div>
+      <div class="filter-buttons">
+        <button type="submit" class="button small">Aplicar filtros</button
+        ><button type="button" class="button secondary small" (click)="reset()">Limpar</button>
+      </div>
+    </form>
+  }
+  @if (search()) {
+    <p class="subtle" style="margin-bottom: 14px">
+      Busca nos registros desta página. Use os filtros para consultar outros períodos.
+    </p>
+  }
+  <app-load-state [loading]="data.loading()" [error]="data.error()" (retry)="data.reload()" />
+  @if (data.data(); as result) {
+    <section class="glass table-panel">
+      @if (visible().length > 0) {
+        <app-transaction-table
+          [items]="visible()"
+          [actions]="true"
+          (inspected)="inspect($event)"
+          (edited)="edit($event)"
+          (cancelled)="cancel($event)"
+        />
+      } @else {
+        <div class="panel-empty">
+          <span class="empty-icon"><app-icon name="activity" /></span>
+          <h2>Um espaço para seus movimentos.</h2>
+          <p>
+            {{
+              search()
+                ? 'Nenhum registro desta página corresponde à sua busca.'
+                : 'Nenhuma transação neste período. Ajuste os filtros ou registre seu próximo movimento.'
+            }}
+          </p>
+          <button type="button" class="button secondary" (click)="editor.create()">
+            Nova transação
+          </button>
+        </div>
+      }
+      <div class="paginator">
+        <span>{{ result.totalElementos }} registros no período</span>
+        <div class="paginator-controls">
+          <button
+            type="button"
+            class="icon-button"
+            aria-label="Página anterior"
+            [disabled]="page() === 0"
+            (click)="page.set(page() - 1)"
+          >
+            <app-icon name="left" />
+          </button>
+          <span
+            >{{ result.totalPaginas ? result.pagina + 1 : 0 }} de {{ result.totalPaginas }}</span
+          >
+          <button
+            type="button"
+            class="icon-button"
+            aria-label="Próxima página"
+            [disabled]="page() + 1 >= result.totalPaginas"
+            (click)="page.set(page() + 1)"
+          >
+            <app-icon name="right" />
+          </button>
+        </div>
+      </div>
+    </section>
+  }
+</div>
+@if (detailId()) {
+  <app-modal
+    title="Detalhes do movimento"
+    description="As informações que contam essa escolha."
+    (closed)="detailId.set(null)"
+  >
+    <app-load-state
+      [loading]="detail.loading()"
+      [error]="detail.error()"
+      (retry)="detail.reload()"
+    />
+    @if (detail.data(); as data) {
+      <h3>{{ data.transaction.descricao }}</h3>
+      <p class="number" style="font-size: 2.7rem; margin: 14px 0">
+        {{ data.transaction.valor | money }}
+      </p>
+      <div class="detail-grid">
+        <div class="detail-stat">
+          <small>Tipo</small>
+          <p>{{ data.transaction.tipo | label }}</p>
+        </div>
+        <div class="detail-stat">
+          <small>Pagamento</small>
+          <p>{{ data.transaction.meioPagamento | label }}</p>
+        </div>
+        <div class="detail-stat">
+          <small>Situação</small
+          ><span class="badge" [class]="data.transaction.situacao">{{
+            data.transaction.situacao | label
+          }}</span>
+        </div>
+      </div>
+      <div class="list-stack">
+        <div class="list-row">
+          <span>Categoria</span
+          ><span>{{ workspace.categoryName(data.transaction.categoriaId) }}</span>
+        </div>
+        <div class="list-row">
+          <span>Conta / cartão</span
+          ><span>{{
+            data.transaction.cartaoId
+              ? workspace.cardName(data.transaction.cartaoId)
+              : workspace.accountName(data.transaction.contaId)
+          }}</span>
+        </div>
+        <div class="list-row">
+          <span>Data</span><span>{{ data.transaction.dataTransacao | brDate: true }}</span>
+        </div>
+        @if (data.transaction.dataLiquidacao) {
+          <div class="list-row">
+            <span>Liquidação</span><span>{{ data.transaction.dataLiquidacao | brDate: true }}</span>
+          </div>
+        }
+        @if (data.transaction.dataVencimento) {
+          <div class="list-row">
+            <span>Vencimento</span><span>{{ data.transaction.dataVencimento | brDate: true }}</span>
+          </div>
+        }
+      </div>
+      @if (data.parcelas.length) {
+        <h3 style="margin: 24px 0 10px">Parcelas e faturas</h3>
+        <div class="list-stack">
+          @for (parcela of data.parcelas; track parcela.id) {
+            <a
+              class="list-row"
+              routerLink="/faturas"
+              [queryParams]="{ abrir: parcela.faturaId }"
+              (click)="detailId.set(null)"
+              ><div>
+                Parcela {{ parcela.numero }} de {{ data.transaction.quantidadeParcelas
+                }}<small>Vence em {{ parcela.dataVencimento | brDate: true }}</small>
+              </div>
+              <span class="number">{{ parcela.valor | money }} <app-icon name="right" /></span
+            ></a>
+          }
+        </div>
+        <p class="note">
+          <app-icon name="info" />Faturas com pagamentos protegem suas compras contra edição e
+          cancelamento.
+        </p>
+      }
+      <div class="modal-actions">
+        <button
+          type="button"
+          class="button secondary"
+          [disabled]="data.transaction.situacao === 'CANCELADA'"
+          (click)="cancel(data.transaction)"
+        >
+          Cancelar movimento</button
+        ><button
+          type="button"
+          class="button"
+          [disabled]="data.transaction.situacao === 'CANCELADA'"
+          (click)="edit(data.transaction)"
+        >
+          Editar transação
+        </button>
+      </div>
+    }
+  </app-modal>
+}

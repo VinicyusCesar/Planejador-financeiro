@@ -1,0 +1,211 @@
+<div class="page dashboard">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">MAIS CLAREZA. MAIS POSSIBILIDADES.</p>
+      <div class="page-title-mask">
+        <h1>Seu dinheiro.<span>Sob controle.</span></h1>
+      </div>
+      <p>Organize o presente.<br />Dê espaço para o que vem depois.</p>
+      <div class="hero-footnote"><app-icon name="spark" />Um novo olhar para as suas escolhas.</div>
+    </div>
+    <div class="balance-card liquid-glass feature-glass">
+      <div class="balance-top">
+        <span>Saldo nas contas</span><span class="balance-symbol"><app-icon name="wallet" /></span>
+      </div>
+      <div>
+        @if (balances.loading()) {
+          <div class="balance-amount"><span class="spinner"></span></div>
+        } @else if (balances.error()) {
+          <p class="note">
+            {{ balances.error() }}
+            <button class="text-button" (click)="balances.reload()">Atualizar</button>
+          </p>
+        } @else {
+          <p class="balance-amount">{{ totalBalance() | money }}</p>
+        }
+        <p class="balance-label">Seu saldo bancário, em um só lugar.</p>
+      </div>
+      <div class="balance-bottom">
+        <span
+          >{{ workspace.activeAccounts().length }}
+          {{ workspace.activeAccounts().length === 1 ? 'conta ativa' : 'contas ativas' }}</span
+        ><a routerLink="/contas">Ver minhas contas<app-icon name="arrow" /></a>
+      </div>
+    </div>
+  </section>
+  <div class="section-top">
+    <div>
+      <h2>Seu panorama</h2>
+      <p class="capitalize">{{ monthTitle() }} · por data da transação</p>
+    </div>
+    <app-month-picker [value]="month()" (changed)="month.set($event)" />
+  </div>
+  <app-load-state
+    [loading]="monthly.loading()"
+    [error]="monthly.error()"
+    (retry)="monthly.reload()"
+  />
+  @if (monthly.data(); as data) {
+    <section class="stat-grid" aria-label="Resumo mensal">
+      <article class="stat glass">
+        <div class="stat-top">
+          <span>Receitas do mês</span><span class="stat-icon"><app-icon name="up" /></span>
+        </div>
+        <p class="number">{{ data.receitas | money }}</p>
+        <p class="stat-caption">O que entrou no seu mês</p>
+      </article>
+      <article class="stat glass">
+        <div class="stat-top">
+          <span>Despesas do mês</span
+          ><span class="stat-icon expense"><app-icon name="down" /></span>
+        </div>
+        <p class="number">{{ data.despesas | money }}</p>
+        <p class="stat-caption">Suas escolhas por competência</p>
+      </article>
+      <article class="stat glass">
+        <div class="stat-top">
+          <span>Saldo do mês</span><span class="stat-icon neutral"><app-icon name="chart" /></span>
+        </div>
+        <p class="number" [class.red]="data.saldoDoMes < 0">{{ data.saldoDoMes | money }}</p>
+        <p class="stat-caption">Receitas menos despesas</p>
+      </article>
+    </section>
+  }
+  <section class="dashboard-charts">
+    <article class="glass panel chart-panel">
+      <div class="section-top">
+        <div>
+          <h2>Seu ritmo na semana</h2>
+          <p>Uma escolha de cada vez.</p>
+        </div>
+        <label class="sr-only" for="week-reference">Data da semana</label
+        ><input
+          id="week-reference"
+          class="week-picker"
+          type="date"
+          [value]="week()"
+          (change)="$any($event.target).value && week.set($any($event.target).value)"
+          style="
+            width: 132px;
+            min-height: 31px;
+            padding: 6px;
+            font-size: 0.67rem;
+            background: transparent;
+            border-color: #ffffff14;
+          "
+        />
+      </div>
+      <app-load-state
+        [loading]="weekly.loading()"
+        [error]="weekly.error()"
+        (retry)="weekly.reload()"
+      />
+      @if (weekly.data(); as data) {
+        <div class="chart-summary">
+          <span class="number">{{ data.totalSemana | money }}</span
+          ><span>em despesas nesta semana</span>
+        </div>
+        @if (hasWeeklyExpense()) {
+          <app-weekly-chart [days]="data.gastosPorDia" />
+        } @else {
+          <div class="chart-empty">
+            <app-icon name="activity" />
+            <p>Nenhuma despesa nesta semana.<br />Seu próximo movimento aparece aqui.</p>
+          </div>
+        }
+        <p class="subtle" style="margin-top: 17px; font-size: 0.65rem">
+          @if (data.comparacaoPercentualDisponivel) {
+            {{ data.variacaoPercentual }}% em relação à semana anterior.
+          } @else {
+            Sem base de gastos na semana anterior para comparar.
+          }
+        </p>
+      }
+    </article>
+    <article class="glass panel chart-panel">
+      <div class="section-top">
+        <div>
+          <h2>Para onde foi seu dinheiro</h2>
+          <p>As categorias do seu mês.</p>
+        </div>
+        <app-icon name="chart" />
+      </div>
+      <app-load-state
+        [loading]="monthly.loading()"
+        [error]="monthly.error()"
+        (retry)="monthly.reload()"
+      />
+      @if (monthly.data(); as data) {
+        @if (categories().length > 0) {
+          <div class="donut-wrap">
+            <div
+              class="donut"
+              [style.background]="donut()"
+              role="img"
+              aria-label="Distribuição das despesas por categoria"
+            >
+              <div class="donut-center">
+                <small>TOTAL DO MÊS</small><strong>{{ data.despesas | money }}</strong>
+              </div>
+            </div>
+            <div class="legend">
+              @for (category of categories(); track category.categoriaId; let index = $index) {
+                <div class="legend-row">
+                  <span class="legend-label"
+                    ><span
+                      class="legend-dot"
+                      [style.background]="colors[index % colors.length]"
+                    ></span
+                    ><span [title]="category.categoria">{{ category.categoria }}</span></span
+                  ><span class="number">{{ category.total | money }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        } @else {
+          <div class="chart-empty">
+            <app-icon name="chart" />
+            <p>
+              Seu mês ainda não tem despesas.<br />Quando acontecerem, você vai entender cada parte.
+            </p>
+          </div>
+        }
+      }
+      <div style="border-top: 1px solid #ffffff10; padding-top: 14px; margin-top: 14px">
+        <a class="text-button" routerLink="/orcamentos"
+          >Dar um plano a esses números<app-icon name="arrow"
+        /></a>
+      </div>
+    </article>
+  </section>
+  <section class="glass table-panel">
+    <div class="section-top">
+      <div>
+        <h2>Últimos movimentos</h2>
+        <p>Um retrato das suas escolhas recentes.</p>
+      </div>
+      <a class="text-button" routerLink="/transacoes" [queryParams]="{ inicio: month() + '-01' }"
+        >Ver todos<app-icon name="arrow"
+      /></a>
+    </div>
+    <app-load-state
+      [loading]="movements.loading()"
+      [error]="movements.error()"
+      (retry)="movements.reload()"
+    />
+    @if (movements.data(); as page) {
+      @if (page.conteudo.length > 0) {
+        <app-transaction-table [items]="page.conteudo" (inspected)="inspect($event)" />
+      } @else {
+        <div class="panel-empty">
+          <span class="empty-icon"><app-icon name="activity" /></span>
+          <h2>Seu histórico começa aqui.</h2>
+          <p>Registre uma receita ou despesa para enxergar seu dinheiro com mais clareza.</p>
+          <button type="button" class="button secondary" (click)="editor.create()">
+            <app-icon name="plus" />Meu primeiro movimento
+          </button>
+        </div>
+      }
+    }
+  </section>
+</div>

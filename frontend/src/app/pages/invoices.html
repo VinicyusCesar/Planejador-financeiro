@@ -1,0 +1,205 @@
+<div class="page">
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">SEUS PRÓXIMOS CICLOS</p>
+      <div class="page-title-mask"><h1>Faturas</h1></div>
+      <p class="muted">Entenda cada compra, acompanhe o que falta e pague no seu ritmo.</p>
+    </div>
+  </div>
+  <nav class="subnav" aria-label="Cartões e faturas">
+    <a routerLink="/cartoes">Meus cartões</a
+    ><a routerLink="/faturas" class="active" aria-current="page">Faturas</a>
+  </nav>
+  <form class="filter-panel glass" [formGroup]="form" (ngSubmit)="apply()">
+    <div class="field">
+      <label for="invoice-card">Cartão</label
+      ><select id="invoice-card" formControlName="cartaoId" (change)="changeCard()">
+        <option value="">Todos os cartões</option>
+        @for (card of workspace.cards(); track card.id) {
+          <option [value]="card.id">{{ card.nome }}</option>
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label for="invoice-period">Ciclo</label
+      ><select id="invoice-period" formControlName="periodo">
+        <option value="">Todas as faturas</option>
+        @if (form.controls.cartaoId.value) {
+          <option value="ATUAL">Atual</option>
+          <option value="ANTERIORES">Anteriores</option>
+          <option value="PROXIMAS">Próximas</option>
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label for="invoice-start">Vencimento de</label
+      ><input id="invoice-start" type="date" formControlName="inicio" />
+    </div>
+    <div class="field">
+      <label for="invoice-end">Vencimento até</label
+      ><input id="invoice-end" type="date" formControlName="fim" />
+    </div>
+    <div class="filter-buttons">
+      <button class="button small" type="submit">Aplicar filtros</button
+      ><button class="button secondary small" type="button" (click)="form.reset(); apply()">
+        Limpar
+      </button>
+    </div>
+  </form>
+  <app-load-state [loading]="data.loading()" [error]="data.error()" (retry)="data.reload()" />
+  @if (data.data(); as items) {
+    <section class="glass table-panel">
+      @if (items.length) {
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Referência</th>
+                <th>Cartão</th>
+                <th>Vencimento</th>
+                <th class="align-right">Pendente</th>
+                <th>Situação</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (invoice of items; track invoice.id) {
+                <tr>
+                  <td>
+                    <button
+                      type="button"
+                      class="row-link"
+                      style="text-transform: capitalize"
+                      (click)="detailId.set(invoice.id)"
+                    >
+                      {{ reference(invoice) }}
+                    </button>
+                  </td>
+                  <td>{{ workspace.cardName(invoice.cartaoId) }}</td>
+                  <td>{{ invoice.dataVencimento | brDate }}</td>
+                  <td class="amount align-right">{{ invoice.saldoPendente | money }}</td>
+                  <td>
+                    <span class="badge" [class]="invoice.situacao">{{
+                      invoice.situacao | label
+                    }}</span>
+                  </td>
+                  <td>
+                    <button
+                      class="icon-button plain"
+                      type="button"
+                      [attr.aria-label]="'Ver fatura de ' + reference(invoice)"
+                      (click)="detailId.set(invoice.id)"
+                    >
+                      <app-icon name="right" />
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="panel-empty">
+          <span class="empty-icon"><app-icon name="card" /></span>
+          <h2>Sem faturas por aqui.</h2>
+          <p>
+            As compras confirmadas no crédito organizam suas faturas automaticamente. Você também
+            pode ajustar os filtros.
+          </p>
+          <a class="button secondary" routerLink="/cartoes">Ver meus cartões</a>
+        </div>
+      }
+    </section>
+  }
+</div>
+@if (detailId()) {
+  <app-modal
+    title="Sua fatura em detalhes"
+    description="Compras, parcelas e pagamentos no mesmo lugar."
+    (closed)="detailId.set(null)"
+  >
+    <app-load-state
+      [loading]="detail.loading()"
+      [error]="detail.error()"
+      (retry)="detail.reload()"
+    />
+    @if (detail.data(); as data) {
+      <div class="section-top">
+        <div>
+          <h3 style="text-transform: capitalize">{{ reference(data.resumo) }}</h3>
+          <p>
+            {{ workspace.cardName(data.resumo.cartaoId) }} · Vence
+            {{ data.resumo.dataVencimento | brDate: true }}
+          </p>
+        </div>
+        <span class="badge" [class]="data.resumo.situacao">{{ data.resumo.situacao | label }}</span>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-stat">
+          <small>Total</small><span class="number">{{ data.resumo.total | money }}</span>
+        </div>
+        <div class="detail-stat">
+          <small>Pago</small><span class="number green">{{ data.resumo.totalPago | money }}</span>
+        </div>
+        <div class="detail-stat">
+          <small>Pendente</small><span class="number">{{ data.resumo.saldoPendente | money }}</span>
+        </div>
+      </div>
+      <div class="progress"><span [style.width.%]="paidPercent(data.resumo)"></span></div>
+      <h3 style="margin: 26px 0 10px">Compras e parcelas</h3>
+      <div class="list-stack">
+        @for (compra of data.compras; track compra.parcelaId) {
+          <a
+            class="list-row"
+            routerLink="/transacoes"
+            [queryParams]="{ abrir: compra.transacaoId }"
+            (click)="detailId.set(null)"
+            ><div>
+              {{ compra.descricao
+              }}<small
+                >Parcela {{ compra.numero }} de {{ compra.quantidadeParcelas }} · Compra em
+                {{ compra.dataCompra | brDate }}</small
+              >
+            </div>
+            <span class="number">{{ compra.valor | money }}</span></a
+          >
+        }
+        @if (!data.compras.length) {
+          <p class="subtle">Nenhuma compra confirmada nesta fatura.</p>
+        }
+      </div>
+      <h3 style="margin: 26px 0 10px">Pagamentos registrados</h3>
+      <div class="list-stack">
+        @for (payment of data.pagamentos; track payment.id) {
+          <div class="list-row">
+            <div>
+              {{ workspace.accountName(payment.contaId)
+              }}<small>{{ payment.dataPagamento | brDate: true }}</small>
+            </div>
+            <span class="number green">{{ payment.valor | money }}</span>
+          </div>
+        }
+        @if (!data.pagamentos.length) {
+          <p class="subtle">Nenhum pagamento registrado.</p>
+        }
+      </div>
+      @if (workspace.activeAccounts().length === 0) {
+        <p class="note warning">
+          Cadastre uma conta ativa para pagar esta fatura.
+          <a routerLink="/contas" (click)="detailId.set(null)">Ir para contas</a>
+        </p>
+      }
+      <div class="modal-actions">
+        <button class="button secondary" type="button" (click)="detailId.set(null)">Fechar</button
+        ><button
+          class="button"
+          type="button"
+          [disabled]="data.resumo.saldoPendente <= 0 || !workspace.activeAccounts().length"
+          (click)="editors.payment(data.resumo)"
+        >
+          <app-icon name="check" />Registrar pagamento
+        </button>
+      </div>
+    }
+  </app-modal>
+}
