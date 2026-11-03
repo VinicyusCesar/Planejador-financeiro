@@ -9,13 +9,17 @@ import java.util.UUID;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.beans.factory.annotation.Value;
 
 @Repository
 public class ConsultasFinanceirasRepository {
     private final NamedParameterJdbcTemplate jdbc;
+    private final boolean sqlserver;
 
-    public ConsultasFinanceirasRepository(NamedParameterJdbcTemplate jdbc) {
+    public ConsultasFinanceirasRepository(NamedParameterJdbcTemplate jdbc,
+            @Value("${financeiro.sqlserver:false}") boolean sqlserver) {
         this.jdbc = jdbc;
+        this.sqlserver = sqlserver;
     }
 
     public record Totais(BigDecimal receitas, BigDecimal despesas) {}
@@ -25,22 +29,22 @@ public class ConsultasFinanceirasRepository {
     public BigDecimal saldo(UUID usuarioId, UUID contaId, LocalDate hoje) {
         return jdbc.queryForObject("""
                 SELECT c.saldo_inicial
-                  + COALESCE((SELECT SUM(CASE WHEN t.tipo = 'RECEITA' THEN t.valor ELSE -t.valor END)
+                  + CAST(COALESCE((SELECT SUM(CASE WHEN t.tipo = 'RECEITA' THEN t.valor ELSE -t.valor END)
                       FROM transacao t WHERE t.conta_id = c.id AND t.usuario_id = c.usuario_id
                         AND t.situacao = 'CONFIRMADA' AND t.meio_pagamento <> 'CREDITO'
-                        AND t.data_liquidacao IS NOT NULL AND t.data_liquidacao <= :hoje), 0)
-                  + COALESCE((SELECT SUM(tr.valor) FROM transferencia tr
+                        AND t.data_liquidacao IS NOT NULL AND t.data_liquidacao <= :hoje), 0) AS DECIMAL(28,2))
+                  + CAST(COALESCE((SELECT SUM(tr.valor) FROM transferencia tr
                       WHERE tr.conta_destino_id = c.id AND tr.usuario_id = c.usuario_id
-                        AND tr.situacao = 'CONFIRMADA' AND tr.data_transferencia <= :hoje), 0)
-                  - COALESCE((SELECT SUM(tr.valor) FROM transferencia tr
+                        AND tr.situacao = 'CONFIRMADA' AND tr.data_transferencia <= :hoje), 0) AS DECIMAL(28,2))
+                  - CAST(COALESCE((SELECT SUM(tr.valor) FROM transferencia tr
                       WHERE tr.conta_origem_id = c.id AND tr.usuario_id = c.usuario_id
-                        AND tr.situacao = 'CONFIRMADA' AND tr.data_transferencia <= :hoje), 0)
-                  - COALESCE((SELECT SUM(p.valor) FROM pagamento_fatura p
+                        AND tr.situacao = 'CONFIRMADA' AND tr.data_transferencia <= :hoje), 0) AS DECIMAL(28,2))
+                  - CAST(COALESCE((SELECT SUM(p.valor) FROM pagamento_fatura p
                       JOIN fatura f ON f.id = p.fatura_id JOIN cartao_credito cc ON cc.id = f.cartao_id
-                      WHERE p.conta_id = c.id AND cc.usuario_id = c.usuario_id AND p.data_pagamento <= :hoje), 0)
+                      WHERE p.conta_id = c.id AND cc.usuario_id = c.usuario_id AND p.data_pagamento <= :hoje), 0) AS DECIMAL(28,2))
                   AS saldo
                 FROM conta c WHERE c.id = :contaId AND c.usuario_id = :usuarioId
-                """, Map.of("usuarioId", usuarioId, "contaId", contaId, "hoje", hoje), BigDecimal.class);
+                """, parametros(Map.of("usuarioId", usuarioId, "contaId", contaId, "hoje", hoje)), BigDecimal.class);
     }
 
     public Totais totais(UUID usuarioId, LocalDate inicio, LocalDate fimExclusivo) {
@@ -61,7 +65,7 @@ public class ConsultasFinanceirasRepository {
                   AND t.data_transacao >= :inicio AND t.data_transacao < :fim
                 GROUP BY c.id, c.nome ORDER BY total DESC, c.nome, c.id
                 """, periodo(usuarioId, inicio, fimExclusivo), (rs, row) -> new DashboardDto.CategoriaGasto(
-                rs.getObject("id", UUID.class), rs.getString("nome"), rs.getBigDecimal("total")));
+                UUID.fromString(rs.getString("id")), rs.getString("nome"), rs.getBigDecimal("total")));
     }
 
     public List<DashboardDto.DiaGasto> dias(UUID usuarioId, LocalDate inicio, LocalDate fimExclusivo) {
@@ -71,7 +75,7 @@ public class ConsultasFinanceirasRepository {
                   AND data_transacao >= :inicio AND data_transacao < :fim
                 GROUP BY data_transacao ORDER BY data_transacao
                 """, periodo(usuarioId, inicio, fimExclusivo), (rs, row) -> new DashboardDto.DiaGasto(
-                rs.getObject("data_transacao", LocalDate.class), rs.getBigDecimal("total")));
+                rs.getDate("data_transacao").toLocalDate(), rs.getBigDecimal("total")));
     }
 
     public BigDecimal previsto(UUID usuarioId, int ano, int mes) {
@@ -79,7 +83,7 @@ public class ConsultasFinanceirasRepository {
                 SELECT COALESCE(SUM(i.valor_previsto), 0) FROM item_orcamento i
                 JOIN orcamento o ON o.id = i.orcamento_id
                 WHERE o.usuario_id = :usuarioId AND o.ano = :ano AND o.mes = :mes
-                """, Map.of("usuarioId", usuarioId, "ano", ano, "mes", mes), BigDecimal.class);
+                """, parametros(Map.of("usuarioId", usuarioId, "ano", ano, "mes", mes)), BigDecimal.class);
     }
 
     public List<ValoresFatura> faturas(UUID usuarioId, UUID cartaoId, LocalDate hoje) {
@@ -98,8 +102,8 @@ public class ConsultasFinanceirasRepository {
     private List<ValoresFatura> valoresFaturas(UUID usuarioId, UUID cartaoId, UUID faturaId, LocalDate hoje) {
         String filtro = (cartaoId == null ? "" : " AND f.cartao_id = :cartaoId")
                 + (faturaId == null ? "" : " AND f.id = :faturaId");
-        MapSqlParameterSource parametros = new MapSqlParameterSource("usuarioId", usuarioId)
-                .addValue("hoje", hoje).addValue("cartaoId", cartaoId).addValue("faturaId", faturaId);
+        MapSqlParameterSource parametros = parametros(Map.of("usuarioId", usuarioId))
+                .addValue("hoje", hoje).addValue("cartaoId", uuidParametro(cartaoId)).addValue("faturaId", uuidParametro(faturaId));
         // Parcelas e pagamentos são somados separadamente para não multiplicar valores no JOIN.
         String sql = """
                 WITH faturas_usuario AS (
@@ -107,31 +111,43 @@ public class ConsultasFinanceirasRepository {
                     WHERE c.usuario_id = :usuarioId
                 """ + filtro + """
                 ), compras AS (
-                    SELECT p.fatura_id, SUM(p.valor) AS total FROM parcela p
+                    SELECT p.fatura_id, CAST(SUM(p.valor) AS DECIMAL(28,2)) AS total FROM parcela p
                     JOIN transacao t ON t.id = p.transacao_id
                     JOIN faturas_usuario f ON f.id = p.fatura_id
                     WHERE t.situacao = 'CONFIRMADA' AND t.usuario_id = :usuarioId GROUP BY p.fatura_id
                 ), pagamentos AS (
-                    SELECT p.fatura_id, SUM(p.valor) AS total FROM pagamento_fatura p
+                    SELECT p.fatura_id, CAST(SUM(p.valor) AS DECIMAL(28,2)) AS total FROM pagamento_fatura p
                     JOIN faturas_usuario f ON f.id = p.fatura_id
                     WHERE p.data_pagamento <= :hoje GROUP BY p.fatura_id
                 )
                 SELECT f.id, f.cartao_id, f.mes_referencia, f.ano_referencia,
                        f.data_fechamento, f.data_vencimento, COALESCE(c.total, 0) AS total,
                        COALESCE(p.total, 0) AS pago,
-                       GREATEST(COALESCE(c.total, 0) - COALESCE(p.total, 0), 0) AS pendente
+                       CASE WHEN COALESCE(c.total, 0) > COALESCE(p.total, 0)
+                            THEN COALESCE(c.total, 0) - COALESCE(p.total, 0) ELSE 0 END AS pendente
                 FROM faturas_usuario f LEFT JOIN compras c ON c.fatura_id = f.id
                 LEFT JOIN pagamentos p ON p.fatura_id = f.id
                 ORDER BY f.ano_referencia, f.mes_referencia, f.cartao_id
                 """;
         return jdbc.query(sql, parametros, (rs, row) -> new ValoresFatura(
-                rs.getObject("id", UUID.class), rs.getObject("cartao_id", UUID.class),
+                UUID.fromString(rs.getString("id")), UUID.fromString(rs.getString("cartao_id")),
                 rs.getInt("mes_referencia"), rs.getInt("ano_referencia"),
-                rs.getObject("data_fechamento", LocalDate.class), rs.getObject("data_vencimento", LocalDate.class),
+                rs.getDate("data_fechamento").toLocalDate(), rs.getDate("data_vencimento").toLocalDate(),
                 rs.getBigDecimal("total"), rs.getBigDecimal("pago"), rs.getBigDecimal("pendente")));
     }
 
-    private Map<String, Object> periodo(UUID usuarioId, LocalDate inicio, LocalDate fim) {
-        return Map.of("usuarioId", usuarioId, "inicio", inicio, "fim", fim);
+    private Object uuidParametro(UUID id) {
+        return sqlserver && id != null ? id.toString() : id;
+    }
+
+    private MapSqlParameterSource parametros(Map<String, ?> valores) {
+        MapSqlParameterSource resultado = new MapSqlParameterSource();
+        valores.forEach((nome, valor) -> resultado.addValue(nome,
+                valor instanceof UUID id ? uuidParametro(id) : valor));
+        return resultado;
+    }
+
+    private MapSqlParameterSource periodo(UUID usuarioId, LocalDate inicio, LocalDate fim) {
+        return parametros(Map.of("usuarioId", usuarioId, "inicio", inicio, "fim", fim));
     }
 }

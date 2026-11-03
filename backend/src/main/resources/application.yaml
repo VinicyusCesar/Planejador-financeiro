@@ -1,4 +1,7 @@
 spring:
+  config:
+    activate:
+      on-profile: "!sqlserver"
   application:
     name: planejador-financeiro
 

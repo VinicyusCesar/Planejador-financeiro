@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
-@Table(name = "parcela", schema = "public")
+@Table(name = "parcela")
 public class Parcela {
 
     @Id

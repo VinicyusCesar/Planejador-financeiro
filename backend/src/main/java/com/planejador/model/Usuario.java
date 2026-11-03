@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "usuario", schema = "public")
+@Table(name = "usuario")
 public class Usuario {
 
     @Id

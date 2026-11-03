@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice(assignableTypes = HealthController.class)
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class HealthExceptionHandler {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(HealthExceptionHandler.class);
 
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ErrorResponse> handleDatabaseFailure(DataAccessException exception) {
+        log.error("Falha na conectividade com o banco", exception);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(new ErrorResponse(false, "Não foi possível conectar ao banco de dados."));
     }

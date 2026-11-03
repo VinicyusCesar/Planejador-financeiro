@@ -7,7 +7,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity
-@Table(name = "meta_financeira", schema = "public")
+@Table(name = "meta_financeira")
 public class MetaFinanceira {
 
     @Id
